@@ -1,35 +1,42 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  UserManager.m
 //  PhotoHunt
 
 #import "FSHAccessToken.h"
+#import "FSHClient.h"
 #import "GAI.h"
 #import "GAITracker.h"
-#import "GTLQueryFSH.h"
 #import "UserManager.h"
 
 @implementation UserManager
 
 - (id)init {
-  return [self initWithDelegate:nil andService:nil];
+  return [self initWithDelegate:nil];
 }
 
-- (id)initWithDelegate:(id<UserManagerDelegate>)delegate
-            andService:(GTLServiceFSH *)gtlservice {
+- (id)initWithDelegate:(id<UserManagerDelegate>)delegate{
   self  = [super init];
   if (self) {
     self.delegate = delegate;
-    self.service = gtlservice;
   }
   return self;
 }
 
-- (void)dealloc {
-  [_currentAuth release];
-  [_service release];
-  [_currentUser release];
-  [super dealloc];
-}
 
 - (BOOL)canSignIn {
   // Check whether we can sign in. If it looks like we should be able to sign in
@@ -58,7 +65,7 @@
     GTMLoggerDebug(@"Auth Error: %@", error);
     return;
   }
-
+  
   self.currentAuth = auth;
   [self refreshToken];
 }
@@ -67,47 +74,52 @@
   if (self.currentAuth) {
     [self.delegate startedAction];
   }
-
+  
   [self.currentAuth authorizeRequest:nil completionHandler:^(NSError *error) {
-      if (error) {
-        GTMLoggerDebug(@"Token Fetch Error: %@", error);
-        if ([error code] == 400) {
-          // Our token is bad, clear it.
-          [self signOut];
-        }
-        [self.delegate userLoginFailed];
-        return;
+    if (error) {
+      GTMLoggerDebug(@"Token Fetch Error: %@", error);
+      if ([error code] == 400) {
+        // Our token is bad, clear it.
+        [self signOut];
       }
+      [self.delegate userLoginFailed];
+      return;
+    }
 
-      FSHAccessToken *token = [FSHAccessToken object];
-      token.access_token = [NSString stringWithFormat:@"%@",
-                               self.currentAuth.accessToken];
-      GTLQueryFSH *query = [GTLQueryFSH queryForSessionIdWithAccessToken:token];
-
-      [self.service executeRestQuery:query completionHandler:
-          ^(GTLServiceTicket *ticket,
-            FSHAccessToken *session,
-            NSError *error) {
-              if (error) {
-                GTMLoggerDebug(@"Session Error: %@", error);
-                [self.delegate userLoginFailed];
-              } else {
-                GTMLoggerDebug(@"Logged In User: %d", session.identifier);
-                if (self.currentUser.identifier == session.identifier) {
-                  // No need to refresh user.
-                  [self.delegate tokenRefreshed];
-                  [self.delegate completedAction];
-                } else {
-                  FSHProfile *user = [[[FSHProfile alloc] init] autorelease];
-                  user.identifier = session.identifier;
-                  user.googleUserId = session.googleUserId;
-                  user.googleDisplayName = session.googleDisplayName;
-                  user.googlePublicProfilePhotoUrl = session.googlePublicProfilePhotoUrl;
-                  [self.delegate loadedUser:user fromId:[self selfIdentifier]];
-                  [self.delegate completedAction];
-                }
-              }
-      }];
+    FSHAccessToken *token = [FSHAccessToken alloc];
+    token.access_token = [NSString stringWithFormat:@"%@",
+                          self.currentAuth.accessToken];
+    
+    FSHClient *client = [FSHClient sharedClient];
+    NSString *path = [client pathForConnect];
+    NSDictionary *params = [client paramsForConnectWithToken:token];
+    
+    [client postPath:path
+          parameters:params
+             success:
+     ^(AFHTTPRequestOperation *operation, id responseObject) {
+      NSDictionary *attributes = responseObject;
+      FSHAccessToken *session = [[FSHAccessToken alloc] initWithAttributes:attributes];
+      GTMLoggerDebug(@"Logged In User: %d", session.identifier);
+      if (self.currentUser.identifier == session.identifier) {
+        // No need to refresh user.
+        [self.delegate tokenRefreshed];
+        [self.delegate completedAction];
+      } else {
+        FSHProfile *user = [[FSHProfile alloc] init];
+        user.identifier = session.identifier;
+        user.googleUserId = session.googleUserId;
+        user.googleDisplayName = session.googleDisplayName;
+        user.googlePublicProfilePhotoUrl = session.googlePublicProfilePhotoUrl;
+        [self.delegate loadedUser:user fromId:[self selfIdentifier]];
+        [self.delegate completedAction];
+      }
+    }
+             failure:
+     ^(AFHTTPRequestOperation *operation, NSError *error) {
+      GTMLoggerDebug(@"Session Error: %@", error);
+      [self.delegate userLoginFailed];
+    }];
   }];
 }
 

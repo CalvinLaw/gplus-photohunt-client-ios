@@ -1,11 +1,27 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  ThemeManager.m
 //  PhotoHunt
 
+#import "FSHClient.h"
 #import "FSHPhoto.h"
+#import "FSHPhotos.h"
+#import "FSHThemes.h"
 #import <GoogleOpenSource/GoogleOpenSource.h>
-#import "GTLQueryFSH.h"
-#import "GTLServiceFSH.h"
 #import "ThemeManager.h"
 
 static const NSInteger kThemeCheckInterval = 300;
@@ -14,7 +30,6 @@ static NSString * const kBestOrder = @"best";
 
 @interface ThemeManager () {
   id<ThemeManagerDelegate> delegate;
-  GTLServiceFSH *service;
   NSTimeInterval lastRetrievedThemesAt;
   BOOL isBackgroundCall;
   BOOL orderByLatest;
@@ -28,28 +43,19 @@ static NSString * const kBestOrder = @"best";
 @implementation ThemeManager
 
 - (id)init {
-  return [self initWithDelegate:nil andService:nil];
+  return [self initWithDelegate:nil];
 }
 
-- (id)initWithDelegate:(id<ThemeManagerDelegate>)tmdelegate
-            andService:(GTLServiceFSH *)gtlservice {
+- (id)initWithDelegate:(id<ThemeManagerDelegate>)tmdelegate {
   self  = [super init];
   if (self) {
     delegate = tmdelegate;
-    service = [gtlservice retain];
     orderByLatest = YES;
     [self reloadThemes];
   }
   return self;
 }
 
-- (void)dealloc {
-  [_themes release];
-  [_allPhotos release];
-  [_friendPhotos release];
-  [service release];
-  [super dealloc];
-}
 
 #pragma mark - Calls from owner
 
@@ -85,12 +91,12 @@ static NSString * const kBestOrder = @"best";
     [self reloadThemes];
     lastRetrievedThemesAt = timeStamp;
   }
-
+  
   [self reloadThemeData];
 }
 
 - (FSHTheme *)getLatestTheme {
-  return [self.themes objectAtIndexedSubscript:0];
+  return [self.themes.items objectAtIndex:0];
 }
 
 - (BOOL)setThemeId:(NSInteger)themeId {
@@ -127,15 +133,15 @@ static NSString * const kBestOrder = @"best";
 
 - (void) handleError:(NSError *)error {
   GTMLoggerDebug(@"Theme Error: %@", error);
-
+  
   if ([error.domain isEqual:@"com.google.HTTPStatus"] && error.code == 401) {
-      [delegate refreshAuth];
+    [delegate refreshAuth];
   } else if ([error.domain isEqual:@"com.google.HTTPStatus"] && error.code == 500) {
-      // Issue with the backend, treat it as likely recoverable in future.
-      [delegate completedAction];
-      if(!self.allPhotos && !self.friendPhotos) {
-        [delegate connectionOffline:NO];
-      }
+    // Issue with the backend, treat it as likely recoverable in future.
+    [delegate completedAction];
+    if(!self.allPhotos && !self.friendPhotos) {
+      [delegate connectionOffline:NO];
+    }
   } else if (error.domain == NSURLErrorDomain ||
              [error.domain isEqual:@"com.google.HTTPStatus"]) {
     if (!isBackgroundCall) {
@@ -148,7 +154,7 @@ static NSString * const kBestOrder = @"best";
     }
     return;
   }
-
+  
   // Try again in 5 seconds.
   [NSTimer scheduledTimerWithTimeInterval:5.0
                                    target:self
@@ -158,32 +164,31 @@ static NSString * const kBestOrder = @"best";
 }
 
 - (void)reloadThemes {
-  GTLQueryFSH *themeQuery = [GTLQueryFSH queryForThemes];
-  [service executeRestQuery:themeQuery
-          completionHandler:^(GTLServiceTicket *ticket,
-                              FSHThemes *sthemes,
-                              NSError *error) {
-              if (error) {
-                [self handleError:error];
-                return;
-              } else if (!sthemes ||
-                         !sthemes.items ||
-                         [sthemes.items count] == 0) {
-                // If it doesn't look right, just ignore it.
-                return;
-              } else {
-                BOOL newTheme = NO;
-                if (!self.themes ||
-                    [self.themes.items count] < [sthemes.items count]) {
-                  newTheme = YES;
-                }
-                self.themes = sthemes;
-
-                if (newTheme) {
-                  [delegate newThemeAvailable];
-                }
-              }
-    }];
+  FSHClient *client = [FSHClient sharedClient];
+  NSString *path = [client pathForThemes];
+  
+  [client getPath:path parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
+    NSArray *array = responseObject;
+    FSHThemes *sthemes = [[FSHThemes alloc] initWithArray:array];
+    
+    if (![sthemes.items count]) {
+      // If it doesn't look right, just ignore it.
+      return;
+    } else {
+      BOOL newTheme = NO;
+      if ([self.themes.items count] < [sthemes.items count]) {
+        newTheme = YES;
+      }
+      self.themes = sthemes;
+      
+      if (newTheme) {
+        [delegate newThemeAvailable];
+      }
+    }
+  } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+    [self handleError:error];
+    return;
+  }];
 }
 
 -(void)reloadThemeData {
@@ -191,70 +196,72 @@ static NSString * const kBestOrder = @"best";
     // NOP if we don't have a theme to load.
     return;
   }
-
+  
   // Flag to prevent too many requests happening at once.
   inRequest = YES;
   // Flag to signal completion.
   allFriendsCompleted = NO;
-
+  
   // Retrieve photos by friends and all photos in parallel. If friends
   // returns first, update the friends list, and on the all photos response
   // deduplicate then update that. If all photos returns first hold off
   // updating - once friends photos come back (with an error or success)
   // deduplicate if necessary and refresh both.
+  FSHClient *client = [FSHClient sharedClient];
+
   if (self.currentUserId) {
-    GTLQueryFSH *friendsQuery  =
-    [GTLQueryFSH queryForImagesByFriendsInThemeId:self.currentThemeId];
-    [service executeRestQuery:friendsQuery
-            completionHandler:^(GTLServiceTicket *iticket,
-                                FSHPhotos *sphotos,
-                                NSError *error) {
-              allFriendsCompleted = YES;
-              [delegate completedAction];
-              if (error) {
-                [self handleError:error];
-                if (self.allPhotos) {
-                  [self callAllImagesUpdate];
-                }
-                return;
-              }
+    NSString *imagesByFriendsPath = [client pathForPhotosByTheme:self.currentThemeId friendsOnly:YES];
+    
+    [client getPath:imagesByFriendsPath parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
+      NSArray *array = responseObject;
+      FSHPhotos *sphotos = [[FSHPhotos alloc] initWithArray:array];
 
-              self.friendPhotos = sphotos;
-              if (self.allPhotos) {
-                [self callAllImagesUpdate];
-              }
-              [self sortPhotos:self.friendPhotos];
-              [delegate updateFriendsPhotos:self.friendPhotos];
-            }];
-  }
+      allFriendsCompleted = YES;
+      [delegate completedAction];
 
-  GTLQueryFSH *alluserQuery =
-      [GTLQueryFSH queryForImagesWithThemeId:self.currentThemeId];
-
-  [service executeRestQuery:alluserQuery
-          completionHandler:^(GTLServiceTicket *iticket,
-                              FSHPhotos *sphotos,
-                              NSError *error) {
-            inRequest = NO;
-            if (error) {
-              [self handleError:error];
-              return;
-            }
-
-            if (!self.allPhotos || [sphotos.items count] > allCount) {
-              self.allPhotos = sphotos;
-            }
-
-            if (!self.currentUserId || allFriendsCompleted) {
-              [self callAllImagesUpdate];
-            }
-
-            if (!self.currentUserId) {
-              // We will only reach this if there is no current user,
-              // so we know friends query isn't going to complete.
-              [delegate completedAction];
-            }
+      self.friendPhotos = sphotos;
+      if (self.allPhotos) {
+        [self callAllImagesUpdate];
+      }
+      [self sortPhotos:self.friendPhotos];
+      [delegate updateFriendsPhotos:self.friendPhotos];
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+      allFriendsCompleted = YES;
+      [delegate completedAction];
+      
+      [self handleError:error];
+      if (self.allPhotos) {
+        [self callAllImagesUpdate];
+      }
     }];
+  }
+  
+  NSString *allImagesPath = [client pathForPhotosByTheme:self.currentThemeId friendsOnly:NO];
+  
+  [client getPath:allImagesPath parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
+    NSArray *array = responseObject;
+    FSHPhotos *sphotos = [[FSHPhotos alloc] initWithArray:array];
+
+    inRequest = NO;
+    
+    if (!self.allPhotos || [sphotos.items count] > allCount) {
+      self.allPhotos = sphotos;
+    }
+    
+    if (!self.currentUserId || allFriendsCompleted) {
+      [self callAllImagesUpdate];
+    }
+    
+    if (!self.currentUserId) {
+      // We will only reach this if there is no current user,
+      // so we know friends query isn't going to complete.
+      [delegate completedAction];
+    }
+  } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+    inRequest = NO;
+    
+    [self handleError:error];
+  }];
 }
 
 - (void)callAllImagesUpdate {
@@ -273,15 +280,15 @@ static NSString * const kBestOrder = @"best";
   if (!self.allPhotos || !self.friendPhotos) {
     return NO;
   }
-
+  
   NSMutableDictionary *fMap = [NSMutableDictionary dictionaryWithCapacity:
                                [self.friendPhotos.items count]];
-
+  
   for (FSHPhoto* p in self.friendPhotos.items) {
     NSNumber *ident = [NSNumber numberWithInt:p.identifier];
     [fMap setObject:ident forKey:ident];
   }
-
+  
   NSMutableArray *items = [NSMutableArray array];
   for (FSHPhoto* p in self.allPhotos.items) {
     NSNumber *ident = [NSNumber numberWithInt:p.identifier];
@@ -298,23 +305,23 @@ static NSString * const kBestOrder = @"best";
 
 - (void)sortPhotos:(FSHPhotos *)photos {
   NSArray *sorted = [photos.items
-                        sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
-                          if (orderByLatest) {
-                            if ([(FSHPhoto *)a created] >
-                                [(FSHPhoto *)b created]) {
-                              return NSOrderedAscending;
-                            } else {
-                              return NSOrderedDescending;
-                            }
-                          } else {
-                            if ([(FSHPhoto *)a numVotes] <
-                                [(FSHPhoto *)b numVotes]) {
-                              return NSOrderedDescending;
-                            } else {
-                              return NSOrderedAscending;
-                            }
-                          }
-                        }];
+                     sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+                       if (orderByLatest) {
+                         if ([(FSHPhoto *)a created] >
+                             [(FSHPhoto *)b created]) {
+                           return NSOrderedAscending;
+                         } else {
+                           return NSOrderedDescending;
+                         }
+                       } else {
+                         if ([(FSHPhoto *)a numVotes] <
+                             [(FSHPhoto *)b numVotes]) {
+                           return NSOrderedDescending;
+                         } else {
+                           return NSOrderedAscending;
+                         }
+                       }
+                     }];
   photos.items = sorted;
 }
 

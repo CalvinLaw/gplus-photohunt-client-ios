@@ -1,13 +1,26 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  UserManager.h
 //  PhotoHunt
 
 #import <Foundation/Foundation.h>
-#import "FSHFriends.H"
 #import "FSHProfile.h"
 #import <GooglePlus/GooglePlus.h>
 #import <GoogleOpenSource/GoogleOpenSource.h>
-#import "GTLServiceFSH.h"
 
 // Protocol for calling back to the owner with changes in the user status.
 @protocol UserManagerDelegate <NSObject>
@@ -22,8 +35,7 @@
 // user action blocking, or a more minor issue.
 - (void)connectionOffline:(BOOL)major;
 
-// Signal that the authentication token in the supplied GTLServiceFSH has been
-// update.d
+// Signal that the authentication token in has been updated
 - (void)tokenRefreshed;
 
 // Signal the UserManager is about to start some network activity.
@@ -44,8 +56,7 @@
 
 // Initialise the object with a delegate for state callbacks and a service
 // for calling the PhotoHunt backend.
-- (id)initWithDelegate:(id<UserManagerDelegate>)delegate
-            andService:(GTLServiceFSH *)gtlservice;
+- (id)initWithDelegate:(id<UserManagerDelegate>)delegate;
 
 // Check whether it is possible to sign in without prompting the user.
 - (BOOL)canSignIn;
@@ -65,9 +76,8 @@
 // Return an id string for the user.
 - (NSString *)selfIdentifier;
 
-@property (nonatomic, retain) GTMOAuth2Authentication *currentAuth;
-@property (nonatomic, assign) id<UserManagerDelegate> delegate;
-@property (nonatomic, retain) GTLServiceFSH *service;
-@property (nonatomic, retain) FSHProfile *currentUser;
+@property (nonatomic, strong) GTMOAuth2Authentication *currentAuth;
+@property (nonatomic, weak) id<UserManagerDelegate> delegate;
+@property (nonatomic, strong) FSHProfile *currentUser;
 
 @end

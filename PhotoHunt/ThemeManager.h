@@ -1,4 +1,19 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  ThemeManager.h
 //  PhotoHunt
 
@@ -6,7 +21,6 @@
 #import "FSHPhotos.h"
 #import "FSHTheme.h"
 #import "FSHThemes.h"
-#import "GTLServiceFSH.h"
 
 // Delegate to allow the theme manager to call back to its creator.
 @protocol ThemeManagerDelegate <NSObject>
@@ -42,11 +56,10 @@
 // API.
 @interface ThemeManager : NSObject
 
-// Initialise the object with a delegate for callbacks and a GTLServiceFSH used
-// for querying the PhotoHunt backend. This class does not manage authorisation,
+// Initialise the object with a delegate for callbacks.
+// This class does not manage authorisation,
 // but can signal in cases where the auth is insufficient.
-- (id)initWithDelegate:(id<ThemeManagerDelegate>)delegate
-            andService:(GTLServiceFSH *)gtlservice;
+- (id)initWithDelegate:(id<ThemeManagerDelegate>)delegate;
 
 // Retrieve the latest theme available.
 - (FSHTheme *)getLatestTheme;
@@ -62,8 +75,7 @@
 // whether to make friend images calls.
 - (BOOL)setUserId:(NSInteger)userId;
 
-// Signal that the authentication method on the GTLServiceFSH passed in at init
-// has been updated.
+// Signal that the authentication method has been updated.
 - (void)authRefreshed;
 
 // Retrieve the current ordering of the last returned themed.
@@ -72,9 +84,9 @@
 // Swap between ordering by votes and recent (best & latest in API terms).
 - (NSString *)flipOrder;
 
-@property (nonatomic, retain) FSHThemes *themes;
-@property (nonatomic, retain) FSHPhotos *allPhotos;
-@property (nonatomic, retain) FSHPhotos *friendPhotos;
+@property (nonatomic, strong) FSHThemes *themes;
+@property (nonatomic, strong) FSHPhotos *allPhotos;
+@property (nonatomic, strong) FSHPhotos *friendPhotos;
 
 @property (nonatomic, assign) NSInteger currentThemeId;
 @property (nonatomic, assign) NSInteger currentUserId;

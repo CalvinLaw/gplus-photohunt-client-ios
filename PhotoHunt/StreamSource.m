@@ -1,4 +1,19 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  StreamSource.m
 //  PhotoHunt
 
@@ -12,7 +27,7 @@
 }
 
 - (id)initWithDelegate:(id<StreamSourceDelegate>)delegate
-                useCache:(ImageCache *)cache {
+              useCache:(ImageCache *)cache {
   self = [super init];
   if (self) {
     self.delegate = delegate;
@@ -21,10 +36,6 @@
   return self;
 }
 
-- (void)dealloc {
-  [_cache release];
-  [super dealloc];
-}
 
 #pragma mark - Table view data source
 
@@ -48,7 +59,7 @@
   } else {
     section += 1;
   }
-
+  
   // If we are in the friends section use friendPhotos.
   if (section == 1){
     if (![self.delegate friendPhotos]) {
@@ -56,7 +67,7 @@
     }
     return [[[self.delegate friendPhotos] items] count];
   }
-
+  
   if (![self.delegate allUserPhotos]) {
     return 0;
   }
@@ -70,7 +81,7 @@
   NSInteger row = [indexPath row];
   NSInteger section = [indexPath section];
   NSInteger tagOffset = 0;
-
+  
   if ((section == 0 && ![self.delegate canTakePhoto]) ||
       (section == 1 && [self.delegate canTakePhoto])) {
     photo = [[[self.delegate friendPhotos] items] objectAtIndex:row];
@@ -79,48 +90,45 @@
     photo = [[[self.delegate allUserPhotos] items] objectAtIndex:row];
     tagOffset = [[[self.delegate friendPhotos] items] count] + row;
   }
-
+  
   if (photo) {
     cellIdentifier = [NSString stringWithFormat:@"%d-photoCard",
-                          [self.delegate counter]];
+                      [self.delegate counter]];
   } else {
     cellIdentifier = [NSString stringWithFormat:@"%d-headerCell",
-                          [self.delegate counter]];
+                      [self.delegate counter]];
   }
-
+  
   UITableViewCell *cell = [tableView
                            dequeueReusableCellWithIdentifier:cellIdentifier];
-
+  
   if (!cell) {
-      cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                     reuseIdentifier:cellIdentifier]
-                 autorelease];
-
+    cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                  reuseIdentifier:cellIdentifier];
+    
     if ([self.delegate canTakePhoto] && section == 0) {
       TakePhotoView *button = [[TakePhotoView alloc]
                                initWithDelegate:[self.delegate cardDelegate]];
       [cell.contentView addSubview:button];
-      [button release];
     } else if (photo) {
       PhotoCardView *card = [[PhotoCardView alloc] initWithPhoto:photo
-                                      forRow:tagOffset
-                                withDelegate:[self.delegate cardDelegate]
-                                    useCache:self.cache];
+                                                          forRow:tagOffset
+                                                    withDelegate:[self.delegate cardDelegate]
+                                                        useCache:self.cache];
       [card setTag:tagOffset];
       [cell.contentView addSubview:card];
-      [card release];
     }
   } else if (photo) {
     [[[cell.contentView subviews] lastObject] clearSubviews];
     [[[cell.contentView subviews] lastObject] setPhoto:photo
                                                 forRow:tagOffset];
   }
-
+  
   return cell;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView
-  heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+heightForRowAtIndexPath:(NSIndexPath *)indexPath {
   if ([self.delegate canTakePhoto] && [indexPath section] == 0) {
     // Return a fixed height for the button.
     return [TakePhotoView getHeight];
@@ -130,14 +138,14 @@
 
 - (BOOL)haveHeaders {
   return [self.delegate currentTheme] &&
-         [self.delegate currentUser] &&
-         [[[self.delegate friendPhotos] items] count] > 0;
+  [self.delegate currentUser] &&
+  [[[self.delegate friendPhotos] items] count] > 0;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView
-  heightForHeaderInSection:(NSInteger)section {
+heightForHeaderInSection:(NSInteger)section {
   if (![self haveHeaders] ) {
-      return 0.0;
+    return 0.0;
   }
   if (section == 0 && [self.delegate canTakePhoto]) {
     return 0.0;
@@ -146,9 +154,9 @@
 }
 
 - (UIView *)tableView:(UITableView *)tableView
-  viewForHeaderInSection:(NSInteger)section {
+viewForHeaderInSection:(NSInteger)section {
   if (![self haveHeaders]) {
-      return nil;
+    return nil;
   }
   if ([self.delegate canTakePhoto]) {
     if (section == 0) {
@@ -157,18 +165,17 @@
   } else {
     section += 1;
   }
-
+  
   // create the parent view that will hold header Label.
-  UIView* customView = [[[UIView alloc] initWithFrame:CGRectMake(0.0,
-                                                                 0.0,
-                                                                 320.0,
-                                                                 80.0)]
-                        autorelease];
+  UIView* customView = [[UIView alloc] initWithFrame:CGRectMake(0.0,
+                                                                0.0,
+                                                                320.0,
+                                                                80.0)];
   [customView setBackgroundColor:[UIColor colorWithRed:0.95
                                                  green:0.95
                                                   blue:0.95
                                                  alpha:1.0]];
-
+  
   // create the button object.
   UILabel * headerLabel = [[UILabel alloc] initWithFrame:CGRectMake(9.0,
                                                                     0.0,
@@ -179,16 +186,15 @@
   headerLabel.textColor = [UIColor blackColor];
   headerLabel.highlightedTextColor = [UIColor whiteColor];
   headerLabel.font = [UIFont fontWithName:@"Arial-Bold" size:17];
-
+  
   if (section == 1) {
     headerLabel.text = @"Photos By Friends";
   } else if (section == 2) {
     headerLabel.text = @"Photos By Everyone";
   }
-
+  
   [customView addSubview:headerLabel];
-  [headerLabel release];
-
+  
   return customView;
 }
 

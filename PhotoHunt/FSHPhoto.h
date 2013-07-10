@@ -1,16 +1,27 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  FSHPhoto.h
 //  PhotoHunt
 
 #import <Foundation/Foundation.h>
-#import "FSHProfile.h"
-#import "FSHTheme.h"
-#import <GoogleOpenSource/GoogleOpenSource.h>
 
-// Object to represent a PhotoHunt photo.
-@interface FSHPhoto : GTLObject {
-  // Local cached UIImage to represent the photo.
-  UIImage *_photo;
+@interface FSHPhoto : NSObject {
+    // Local cached UIImage to represent the photo.
+    UIImage *_photo;
 }
 @property (assign) NSInteger identifier;
 @property (assign) NSInteger photoId;
@@ -30,6 +41,7 @@
 @property (copy) NSString *voteCtaUrl;
 @property (copy) NSString *photoContentUrl;
 
+- (FSHPhoto *)initWithAttributes:(NSDictionary *)attributes;
 - (void)setPhoto:(UIImage *)in_photo;
 - (UIImage *)photo;
 

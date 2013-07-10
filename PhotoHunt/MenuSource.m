@@ -1,4 +1,19 @@
-//
+/*
+ *
+ * Copyright 2013 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //  MenuSource.m
 //  PhotoHunt
 
@@ -38,20 +53,15 @@ static NSString * const kGmailURL = @"googlegmail:/co";
   return self;
 }
 
-- (void) dealloc {
-  [menuData release];
-  [super dealloc];
-}
 
 - (void)reloadMenu {
-  [menuData release];
-
+  
   NSMutableArray *menu = [NSMutableArray array];
-
+  
   if ([self.delegate currentTheme]) {
     [menu addObject:kThemeTitle];
   }
-
+  
   if ([self.delegate currentUser]) {
     [menu addObject:kProfileTitle];
     [menu addObject:kInviteTitle];
@@ -60,18 +70,18 @@ static NSString * const kGmailURL = @"googlegmail:/co";
   } else {
     [menu addObject:kSigninWebTitle];
   }
-
+  
   [menu addObject:kRefreshTitle];
   [menu addObject:kAboutTitle];
-
+  
   if ([MFMailComposeViewController canSendMail]) {
     [menu addObject:kFeedbackTitle];
   } else if([[UIApplication sharedApplication]
-                canOpenURL:[NSURL URLWithString:kGmailURL]]) {
+             canOpenURL:[NSURL URLWithString:kGmailURL]]) {
     [menu addObject:kFeedbackTitle];
   }
-
-  menuData = [[NSArray arrayWithArray:menu] retain];
+  
+  menuData = [NSArray arrayWithArray:menu];
 }
 
 #pragma mark - Table view data source
@@ -82,33 +92,32 @@ static NSString * const kGmailURL = @"googlegmail:/co";
 
 - (NSInteger)tableView:(UITableView *)tableView
  numberOfRowsInSection:(NSInteger)section {
-    return [menuData count];
+  return [menuData count];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath{
   NSString *cellIdentifier = @"MENU_CELL";
-
+  
   UITableViewCell *cell = [tableView
                            dequeueReusableCellWithIdentifier:cellIdentifier];
-
+  
   if (!cell) {
-    cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                   reuseIdentifier:cellIdentifier]
-                autorelease];
+    cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                  reuseIdentifier:cellIdentifier];
   }
-
+  
   [cell.textLabel setText:[menuData objectAtIndex:[indexPath row]]];
   [cell.textLabel setTextColor:[UIColor whiteColor]];
-
+  
   return cell;
 }
 
 - (void)tableView:(UITableView *)tableView
-  didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
   [self.delegate hideMenu];
   NSString *selected = [menuData objectAtIndex:[indexPath row]];
-
+  
   if ([selected isEqual:kThemeTitle]) {
     [self.delegate didTapChangeTheme];
   } else if ([selected isEqual:kFeedbackTitle]){
